@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "McpAiClient", "McpAiClient\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "McpEmployeeServerHttp", "McpEmployeeServerHttp\McpEmployeeServerHttp.csproj", "{724A3063-D498-49F3-B6DC-00BF9CC59CCC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "McpDepartmentServer", "McpDepartmentServer\McpDepartmentServer.csproj", "{53A5E4A7-597A-4112-8DAA-ADE3CE4E6F78}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,5 +38,9 @@ Global
 		{724A3063-D498-49F3-B6DC-00BF9CC59CCC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{724A3063-D498-49F3-B6DC-00BF9CC59CCC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{724A3063-D498-49F3-B6DC-00BF9CC59CCC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{53A5E4A7-597A-4112-8DAA-ADE3CE4E6F78}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{53A5E4A7-597A-4112-8DAA-ADE3CE4E6F78}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{53A5E4A7-597A-4112-8DAA-ADE3CE4E6F78}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{53A5E4A7-597A-4112-8DAA-ADE3CE4E6F78}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

@@ -18,17 +18,6 @@ var client = new ChatClient(
     model: "gpt-4o-mini",
     apiKey: apiKey);
 
-var messages = new List<ChatMessage>
-{
-    new UserChatMessage("Explain MCP in one sentence.")
-};
-
-// var response = await client.CompleteChatAsync(messages);
-
-// Console.WriteLine("LLM Response:");
-// Console.WriteLine(response.Value.Content[0].Text);
-
-
 var serverProjectPath =
     Path.GetFullPath(
         Path.Combine(
@@ -57,67 +46,99 @@ var clientTransport = new StdioClientTransport(
 //         Endpoint = new Uri("http://localhost:5031/mcp")
 //     });
 
-await using var mcpClient =
-    await McpClient.CreateAsync(clientTransport);
-
-Console.WriteLine("Connected to MCP server.");
-
-var prompts = await mcpClient.ListPromptsAsync();
-
-Console.WriteLine("\nAvailable MCP prompts:");
-
-foreach (var prmp in prompts)
-{
-    Console.WriteLine("--------------------------------");
-    Console.WriteLine($"Name: {prmp.Name}");
-    Console.WriteLine($"Description: {prmp.Description}");
-}
-var prompt = await mcpClient.GetPromptAsync(
-    "employee_summary",
-    new Dictionary<string, object?>
+var employeeTransport = new HttpClientTransport(
+    new HttpClientTransportOptions
     {
-        ["employeeId"] = 101
+        Endpoint = new Uri("http://localhost:5031/mcp")
     });
 
-    Console.WriteLine("\nPrompt result:");
+var departmentTransport = new HttpClientTransport(
+    new HttpClientTransportOptions
+    {
+        Endpoint = new Uri("http://localhost:5119/mcp")
+    });
 
-foreach (var message in prompt.Messages)
+await using var employeeMcpClient =
+    await McpClient.CreateAsync(employeeTransport);
+
+await using var departmentMcpClient =
+    await McpClient.CreateAsync(departmentTransport);
+
+    var employeeTools =
+    await employeeMcpClient.ListToolsAsync();
+
+var departmentTools =
+    await departmentMcpClient.ListToolsAsync();
+Console.WriteLine("Employee MCP Tools:");
+
+foreach (var tool in employeeTools)
 {
-    Console.WriteLine("--------------------------------");
-    Console.WriteLine(message.Content);
+    Console.WriteLine($"- {tool.Name}");
 }
 
+Console.WriteLine("\nDepartment MCP Tools:");
 
-var tools = await mcpClient.ListToolsAsync();
-
-Console.WriteLine("\nAvailable MCP tools:");
-var openAiTools = new List<ChatTool>();
-foreach (var tool in tools)
+foreach (var tool in departmentTools)
 {
-    var openAiTool = ChatTool.CreateFunctionTool(
-        functionName: tool.Name,
-        functionDescription: tool.Description,
-        functionParameters: BinaryData.FromString(
-            tool.JsonSchema.ToString()));
+    Console.WriteLine($"- {tool.Name}");
+}
+
+var toolToClient =
+    new Dictionary<string, McpClient>();
+
+foreach (var tool in employeeTools)
+{
+    if (!toolToClient.TryAdd(tool.Name, employeeMcpClient))
+    {
+        throw new InvalidOperationException(
+            $"Duplicate MCP tool name detected: {tool.Name}");
+    }
+}
+
+foreach (var tool in departmentTools)
+{
+    if (!toolToClient.TryAdd(tool.Name, departmentMcpClient))
+    {
+        throw new InvalidOperationException(
+            $"Duplicate MCP tool name detected: {tool.Name}");
+    }
+}
+
+var allMcpTools =
+    employeeTools
+        .Concat(departmentTools)
+        .ToList();
+
+
+var openAiTools = new List<ChatTool>();
+
+foreach (var tool in allMcpTools)
+{
+    var openAiTool =
+        ChatTool.CreateFunctionTool(
+            functionName: tool.Name,
+            functionDescription: tool.Description,
+            functionParameters:
+                BinaryData.FromString(
+                    tool.JsonSchema.ToString()));
 
     openAiTools.Add(openAiTool);
 }
-var chatOptions = new ChatCompletionOptions();
+
+
+
+var chatOptions =
+    new ChatCompletionOptions();
 
 foreach (var tool in openAiTools)
 {
     chatOptions.Tools.Add(tool);
 }
-// var messages1 = new List<ChatMessage>
-// {
-//     new UserChatMessage(
-//         "Give me information about employee 101 and tell me how many employees are in the Engineering department?")
-// };
 
 var messages1 = new List<ChatMessage>
 {
     new UserChatMessage(
-        prompt.Messages[0].Content.ToString())
+        "Get employee 101 and provide details about that employee's department. And who is his manager?")
 };
 while (true)
 {
@@ -125,6 +146,7 @@ while (true)
         messages1,
         chatOptions);
 
+    Console.WriteLine($"Total Tools count: {response.Value.ToolCalls.Count.ToString()}");
     if (response.Value.FinishReason != ChatFinishReason.ToolCalls)
     {
          Console.WriteLine("\nFinal Answer:");
@@ -137,10 +159,6 @@ while (true)
         break;
     }
     messages1.Add(new AssistantChatMessage(response.Value));
-    // foreach (var content in response.Value.Content)
-    // {
-    //     Console.WriteLine($"Content type: {content.GetType().Name}");
-    // }
 
     foreach (var toolCall in response.Value.ToolCalls)
     {
@@ -152,10 +170,20 @@ while (true)
             JsonSerializer.Deserialize<Dictionary<string, object?>>(
                 toolCall.FunctionArguments.ToString());
 
-        var toolResult = await mcpClient.CallToolAsync(
-            toolCall.FunctionName,
-            arguments);
-    
+        if (!toolToClient.TryGetValue(
+                toolCall.FunctionName,
+                out var targetClient))
+        {
+            throw new InvalidOperationException(
+                $"No MCP server registered for tool " +
+                $"'{toolCall.FunctionName}'.");
+        }
+
+        var toolResult =
+            await targetClient.CallToolAsync(
+                toolCall.FunctionName,
+                arguments);
+
         var resultText = string.Join(
         Environment.NewLine,
         toolResult.Content.Select(c => c.ToString()));
@@ -169,20 +197,3 @@ while (true)
             resultText));
     }
 }
-
-    // var finalResponse = await client.CompleteChatAsync(
-    // messages1,
-    // chatOptions);
-
-    // Console.WriteLine("\nFinal Answer:");
-    // Console.WriteLine(
-    // finalResponse.Value.Content[0].Text);
-
-// foreach (var tool in tools)
-// {
-//     Console.WriteLine("--------------------------------");
-//     Console.WriteLine($"Name: {tool.Name}");
-//     Console.WriteLine($"Description: {tool.Description}");
-//         Console.WriteLine($"Schema: {tool.JsonSchema}");
-
-// }
